@@ -18,7 +18,7 @@ const App = () => {
   ];
 
   // Reranker toggle state
-  const [useReranker, setUseReranker] = useState(true);
+  const [useReranker, setUseReranker] = useState(false);
 
   const handleFileTypeToggle = (fileType) => {
     setSelectedFileTypes(prev => 
@@ -107,8 +107,8 @@ const App = () => {
       return (
         <div className="flex items-center justify-center h-full text-dark-muted">
           <div className="text-center">
-            <div className="text-6xl mb-4">🚀</div>
-            <p className="text-xl">Search NASA records to get started</p>
+            <div className="text-6xl mb-4 retro-glow">🚀</div>
+            <p className="text-xl font-mono text-neon-green">[ SEARCH NASA RECORDS TO GET STARTED ]</p>
           </div>
         </div>
       );
@@ -121,14 +121,15 @@ const App = () => {
       const startTime = getVideoStartTime(start_timestamp || 0);
       console.log(`Main video display: Loading video from ${source_s3_path} at ${startTime}s`);
       return (
-        <div className="h-full flex flex-col">
-          <h2 className="text-xl font-semibold mb-4 text-dark-text">{title}</h2>
-          <div className="flex-1 flex items-center justify-center">
+        <div className="h-full flex flex-col overflow-hidden">
+          <h2 className="text-xl font-semibold mb-4 text-dark-text flex-shrink-0">{title}</h2>
+          <div className="flex-1 flex items-center justify-center min-h-0">
             <video
               key={`${source_s3_path}-${startTime}`}
               controls
               autoPlay
               className="max-w-full max-h-full rounded-lg bg-black"
+              style={{ objectFit: 'contain' }}
               src={`${source_s3_path}#t=${startTime}`}
               onError={(e) => console.error("Video load error in main display:", e.target.error)}
             >
@@ -136,7 +137,7 @@ const App = () => {
             </video>
           </div>
           {start_timestamp && (
-            <p className="mt-4 text-dark-muted">
+            <p className="mt-4 text-dark-muted flex-shrink-0">
               Segment starts at: {formatTimestamp(start_timestamp)} (playing from {formatTimestamp(startTime)})
             </p>
           )}
@@ -147,9 +148,9 @@ const App = () => {
     if (file_type === 'pdf' && images.length > 0) {
       // For PDFs, embed them in an iframe or provide download link
       return (
-        <div className="h-full flex flex-col">
-          <h2 className="text-xl font-semibold mb-4 text-dark-text">{title}</h2>
-          <div className="flex-1 flex flex-col items-center justify-center relative">
+        <div className="h-full flex flex-col overflow-hidden">
+          <h2 className="text-xl font-semibold mb-4 text-dark-text flex-shrink-0">{title}</h2>
+          <div className="flex-1 flex flex-col items-center justify-center relative min-h-0">
             <iframe
               src={images[currentImageIndex]}
               className="w-full h-full rounded-lg"
@@ -191,14 +192,13 @@ const App = () => {
 
     if (['jpg', 'gif'].includes(file_type) && images.length > 0) {
       return (
-        <div className="h-full flex flex-col">
-          <h2 className="text-xl font-semibold mb-4 text-dark-text">{title}</h2>
-          <div className="flex-1 flex items-center justify-center relative overflow-hidden">
+        <div className="h-full flex flex-col overflow-hidden">
+          <h2 className="text-xl font-semibold mb-4 text-dark-text flex-shrink-0">{title}</h2>
+          <div className="flex-1 flex items-center justify-center relative min-h-0">
             <img
               src={images[currentImageIndex]}
               alt={`${title} - Page ${currentImageIndex + 1}`}
               className="max-w-full max-h-full object-contain rounded-lg"
-              style={{ maxWidth: '100%', maxHeight: '100%' }}
             />
             {images.length > 1 && (
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
@@ -236,36 +236,9 @@ const App = () => {
     );
   };
 
-  // Group video chunks by unique video (title + source_file_name)
-  const groupVideoChunks = (results) => {
-    const groups = {};
-    results.forEach((r) => {
-      if ((r.file_type === 'mp4' || r.file_type === 'video_chunk')) {
-        const groupKey = `${r.title}|||${r.source_file_name}`;
-        if (!groups[groupKey]) groups[groupKey] = [];
-        groups[groupKey].push(r);
-      }
-    });
-    return groups;
-  };
-
-  // For non-video results, just return as is
-  const getNonVideoResults = (results) =>
-    results.filter(
-      (r) => r.file_type !== 'mp4' && r.file_type !== 'video_chunk'
-    );
-
-  // For video results, group by title + source_file_name
-  const videoGroups = groupVideoChunks(results);
-  const nonVideoResults = getNonVideoResults(results);
-
-  // UI state for open dropdowns
-  const [openDropdown, setOpenDropdown] = useState(null);
-
-  const renderResultItem = (result, index, groupKey = null, isTopChunk = false) => {
-    const { file_type, source_s3_path, title, start_timestamp, source_file_name, chunk_text_content } = result;
+  const renderResultItem = (result, index) => {
+    const { file_type, source_s3_path, title, start_timestamp, source_file_name } = result;
     const images = getImageSources(result);
-    // Unique key: title + source_file_name + start_timestamp
     const uniqueKey = `${title}|||${source_file_name}|||${start_timestamp || 'no-ts'}-${index}`;
     const isSelected =
       selectedResult &&
@@ -273,55 +246,25 @@ const App = () => {
       selectedResult.source_file_name === source_file_name &&
       selectedResult.start_timestamp === result.start_timestamp;
 
-    // If rendering a video chunk in the dropdown
-    if (groupKey && !isTopChunk) {
-      // No thumbnail, just timestamp and chunk_text_content
-      return (
-        <div
-          key={uniqueKey}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            // Force re-render by creating a new object reference
-            setSelectedResult({ ...result });
-            setCurrentImageIndex(0);
-          }}
-          className={`pl-8 pr-2 py-2 cursor-pointer rounded transition-colors text-xs leading-tight ${
-            isSelected
-              ? 'bg-blue-900/40 text-blue-200'
-              : 'hover:bg-dark-card/80 text-dark-muted'
-          }`}
-          style={{ borderLeft: '2px solid #334155' }}
-        >
-          <span className="font-mono text-[11px] text-blue-300 mr-2">
-            {formatTimestamp(start_timestamp)}
-          </span>
-          <span className="truncate">{chunk_text_content || <em>No text</em>}</span>
-        </div>
-      );
-    }
+    // Calculate progress percentage for video chunks (0-100%)
+    const progressPercentage = start_timestamp ? Math.min((start_timestamp / 600) * 100, 100) : 0;
 
-    // Otherwise, render the main result item (video group or non-video)
     return (
       <div
         key={uniqueKey}
         onClick={() => {
-          // For video group, play top chunk; for non-video, play as usual
-          if (groupKey) {
-            setSelectedResult({ ...videoGroups[groupKey][0] });
-          } else {
-            setSelectedResult({ ...result });
-          }
+          setSelectedResult({ ...result });
           setCurrentImageIndex(0);
         }}
-        className={`p-4 rounded-lg cursor-pointer transition-colors border ${
+        className={`p-3 cursor-pointer transition-all border font-mono ${
           isSelected
-            ? 'bg-dark-card border-blue-500'
-            : 'bg-dark-surface border-dark-border hover:bg-dark-card'
+            ? 'bg-dark-card neon-border shadow-neon'
+            : 'bg-dark-surface border-neon-green-dark hover:border-neon-green hover:shadow-neon'
         }`}
       >
         <div className="flex gap-3">
-          <div className="flex-shrink-0 w-16 h-16 bg-dark-bg rounded-lg flex items-center justify-center overflow-hidden relative">
-            {(file_type === 'mp4' || file_type === 'video_chunk') && source_s3_path && (!groupKey || isTopChunk) ? (
+          <div className="flex-shrink-0 w-16 h-16 bg-dark-bg border border-neon-green-dark flex items-center justify-center overflow-hidden relative">
+            {(file_type === 'mp4' || file_type === 'video_chunk') && source_s3_path ? (
               <>
                 <video
                   className="w-full h-full object-cover"
@@ -331,14 +274,14 @@ const App = () => {
                   onError={(e) => {
                     console.error("Video thumbnail load error:", e.target.error, source_s3_path);
                     e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex'; // Show fallback emoji
+                    e.target.parentElement.innerHTML = '<div class="text-2xl flex items-center justify-center h-full">🎥</div>';
                   }}
                 ></video>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="text-2xl bg-black/50 rounded-full p-1">🎥</div>
-                </div>
+                {start_timestamp && (
+                  <div className="video-progress-bar" style={{ width: `${progressPercentage}%` }}></div>
+                )}
               </>
-            ) : images.length > 0 && file_type !== 'pdf' && (!groupKey || isTopChunk) ? (
+            ) : images.length > 0 && file_type !== 'pdf' ? (
               <img
                 src={images[0]}
                 alt={title}
@@ -346,7 +289,7 @@ const App = () => {
                 onError={(e) => {
                   console.error("Image thumbnail load error:", e.target.error, images[0]);
                   e.target.style.display = 'none';
-                  e.target.parentElement.innerHTML = '<div class="text-2xl">📄</div>'; // Fallback to emoji
+                  e.target.parentElement.innerHTML = '<div class="text-2xl">📄</div>';
                 }}
               />
             ) : (
@@ -356,167 +299,144 @@ const App = () => {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-dark-text text-sm line-clamp-2 mb-1">
+            <h3 className="font-medium text-neon-green text-xs line-clamp-2 mb-1">
               {title}
               {source_file_name && (
-                <span className="ml-1 text-xs text-dark-muted font-mono">{source_file_name}</span>
+                <span className="ml-1 text-[10px] text-dark-muted">{source_file_name}</span>
               )}
             </h3>
-            <div className="flex items-center gap-2 text-xs text-dark-muted">
-              <span className="px-2 py-1 bg-dark-bg rounded text-xs">
-                {file_type?.toUpperCase()}
+            <div className="flex items-center gap-2 text-[10px] text-neon-green-dark">
+              <span className="px-2 py-0.5 bg-dark-bg border border-neon-green-dark">
+                [{file_type?.toUpperCase()}]
               </span>
               {start_timestamp && (
-                <span>{formatTimestamp(start_timestamp)}</span>
+                <span>[{formatTimestamp(start_timestamp)}]</span>
               )}
             </div>
           </div>
-          {/* Dropdown toggle for video groups */}
-          {groupKey && videoGroups[groupKey].length > 1 && (
-            <button
-              className="ml-2 px-2 py-1 text-xs bg-dark-bg rounded hover:bg-blue-800/60 text-blue-300"
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpenDropdown(openDropdown === groupKey ? null : groupKey);
-              }}
-              aria-label="Show video chunks"
-            >
-              {openDropdown === groupKey ? '▲' : '▼'}
-            </button>
-          )}
         </div>
-        {/* Dropdown for video chunks */}
-        {groupKey && openDropdown === groupKey && (
-          <div className="mt-2">
-            {videoGroups[groupKey]
-              .sort((a, b) => (a.start_timestamp || 0) - (b.start_timestamp || 0))
-              .map((chunk, idx) =>
-                // Only render the dropdown chunk, not recursively render the group
-                renderResultItem(chunk, idx, null, false)
-              )}
-          </div>
-        )}
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-dark-bg text-dark-text">
+    <div className="h-screen bg-dark-bg text-dark-text flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="bg-dark-surface border-b border-dark-border p-6">
+      <header className="bg-dark-surface neon-border-lg p-6 flex-shrink-0">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-dark-text mb-2" style={{ fontFamily: 'Noto Serif JP, serif' }}>
-              NASA Records Search
+            <h1 className="text-3xl font-bold text-neon-green retro-glow mb-2" style={{ fontFamily: 'Courier New, monospace', letterSpacing: '2px' }}>
+              NASA RECORDS AI SEARCH
             </h1>
-            <p className="text-dark-muted italic">
-              Source: National Archives and Records Administration
+            <p className="text-dark-muted italic text-sm">
+              &gt; Source: National Archives and Records Administration
             </p>
           </div>
           <div className="flex-shrink-0">
             <img 
               src="/mdb-leaf.png" 
               alt="MongoDB Logo" 
-              className="h-16 w-auto opacity-80 hover:opacity-100 transition-opacity"
+              className="h-16 w-auto opacity-60 hover:opacity-100 transition-opacity"
+              style={{ filter: 'brightness(0) saturate(100%) invert(88%) sepia(85%) saturate(2427%) hue-rotate(54deg) brightness(104%) contrast(119%)' }}
             />
           </div>
         </div>
       </header>
 
       {/* Search Bar */}
-      <div className="bg-dark-surface border-b border-dark-border p-6">
+      <div className="bg-dark-surface neon-border p-6 flex-shrink-0">
         <div className="max-w-7xl mx-auto">
-          <form onSubmit={handleSearch} className="flex gap-4 items-center">
-            <div className="flex-1">
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search NASA records..."
-                className="w-full px-4 py-3 bg-dark-bg border border-dark-border rounded-lg text-dark-text placeholder-dark-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+          <form onSubmit={handleSearch} className="space-y-4">
+            <div className="flex gap-4 items-center">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="ENTER SEARCH QUERY..."
+                  className="w-full px-4 py-3 bg-dark-bg neon-border text-neon-green placeholder-dark-muted focus:outline-none focus:shadow-neon transition-all font-mono blinking-cursor"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading || !query.trim()}
+                className="px-6 py-3 bg-neon-green text-black font-bold rounded neon-button disabled:opacity-50 disabled:cursor-not-allowed transition-all font-mono"
+              >
+                {loading ? '[ SEARCHING... ]' : '[ SEARCH ]'}
+              </button>
+              {/* Reranker toggle */}
+              <label className="flex items-center gap-2 text-xs text-neon-green-dark select-none cursor-pointer font-mono whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={useReranker}
+                  onChange={() => setUseReranker((v) => !v)}
+                  className="accent-neon-green"
+                />
+                Use reranker
+              </label>
             </div>
-            <div className="w-64">
-              <div className="bg-dark-bg border border-dark-border rounded-lg p-3">
-                <div className="text-xs text-dark-muted mb-2">File Types:</div>
-                <div className="flex flex-wrap gap-2">
-                  {fileTypes.map(type => (
-                    <label
-                      key={type.value}
-                      className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
-                        selectedFileTypes.includes(type.value)
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-dark-surface text-dark-muted hover:bg-dark-card'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedFileTypes.includes(type.value)}
-                        onChange={() => handleFileTypeToggle(type.value)}
-                        className="sr-only"
-                      />
-                      {type.label}
-                    </label>
-                  ))}
-                </div>
+            
+            {/* File Types Filter - Now Below */}
+            <div className="bg-dark-bg neon-border p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs text-neon-green font-mono">[ FILE TYPES ]</div>
                 {selectedFileTypes.length === 0 && (
-                  <div className="text-xs text-dark-muted mt-1">All types selected</div>
+                  <div className="text-xs text-dark-muted font-mono">* All types selected</div>
                 )}
               </div>
+              <div className="flex flex-wrap gap-2">
+                {fileTypes.map(type => (
+                  <label
+                    key={type.value}
+                    className={`flex items-center gap-1 px-3 py-1.5 text-xs cursor-pointer transition-all font-mono ${
+                      selectedFileTypes.includes(type.value)
+                        ? 'bg-neon-green text-black neon-button'
+                        : 'bg-dark-surface text-neon-green-dark border border-neon-green-dark hover:border-neon-green hover:text-neon-green'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedFileTypes.includes(type.value)}
+                      onChange={() => handleFileTypeToggle(type.value)}
+                      className="sr-only"
+                    />
+                    {type.label}
+                  </label>
+                ))}
+              </div>
             </div>
-            <button
-              type="submit"
-              disabled={loading || !query.trim()}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? 'Searching...' : 'Search'}
-            </button>
-            {/* Reranker toggle */}
-            <label className="ml-4 flex items-center gap-2 text-xs text-dark-muted select-none cursor-pointer">
-              <input
-                type="checkbox"
-                checked={useReranker}
-                onChange={() => setUseReranker((v) => !v)}
-                className="accent-blue-600"
-              />
-              Use reranker
-            </label>
           </form>
           {error && (
-            <div className="mt-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg text-red-400">
-              {error}
+            <div className="mt-4 p-4 bg-red-900/20 neon-border text-neon-green font-mono">
+              [ ERROR ] {error}
             </div>
           )}
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="flex gap-6 h-[calc(100vh-280px)]">
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex flex-1">
           {/* Main Display */}
-          <div className="flex-1 bg-dark-surface rounded-lg p-6 border border-dark-border">
+          <div className="flex-1 bg-dark-surface border-r-2 border-neon-green p-6">
             {renderMainContent()}
           </div>
 
           {/* Results Sidebar */}
-          <div className="w-80 bg-dark-surface rounded-lg border border-dark-border">
-            <div className="p-4 border-b border-dark-border">
-              <h2 className="text-lg font-semibold text-dark-text">
-                Results ({results.length})
+          <div className="w-80 bg-dark-surface flex-shrink-0">
+            <div className="p-4 border-b-2 border-neon-green">
+              <h2 className="text-lg font-semibold text-neon-green font-mono">
+                [ RESULTS: {results.length} ]
               </h2>
             </div>
             <div className="p-4 space-y-3 overflow-y-auto h-[calc(100%-80px)]">
               {results.length === 0 && !loading && (
-                <p className="text-dark-muted text-center py-8">
-                  No results yet. Try searching for something!
+                <p className="text-dark-muted text-center py-8 font-mono">
+                  &gt; No results yet. Try searching!
                 </p>
               )}
-              {/* Render grouped video results */}
-              {Object.keys(videoGroups).map((groupKey, idx) =>
-                renderResultItem(videoGroups[groupKey][0], idx, groupKey, true)
-              )}
-              {/* Render non-video results */}
-              {nonVideoResults.map((result, index) =>
+              {/* Render all results individually */}
+              {results.map((result, index) =>
                 renderResultItem(result, index)
               )}
             </div>

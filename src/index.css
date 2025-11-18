@@ -4,11 +4,10 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Courier New', 'Courier', monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: #000000;
 }
 
 code {
@@ -16,20 +15,86 @@ code {
     monospace;
 }
 
-/* Custom scrollbar for dark theme */
+/* Custom scrollbar for retro neon theme */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: #000000;
+  border: 1px solid #00ff41;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #475569;
-  border-radius: 4px;
+  background: #00ff41;
+  border-radius: 0px;
+  box-shadow: 0 0 5px #00ff41;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: #00cc33;
+  box-shadow: 0 0 10px #00ff41;
+}
+
+/* Retro CRT scanline effect */
+@keyframes flicker {
+  0% { opacity: 0.97; }
+  50% { opacity: 1; }
+  100% { opacity: 0.97; }
+}
+
+.retro-glow {
+  text-shadow: 0 0 5px #00ff41, 0 0 10px #00ff41;
+  animation: flicker 3s infinite;
+}
+
+/* Neon border glow effect */
+.neon-border {
+  border: 1px solid #00ff41;
+  box-shadow: 0 0 5px #00ff41, inset 0 0 5px #00ff41;
+}
+
+.neon-border-lg {
+  border: 2px solid #00ff41;
+  box-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, inset 0 0 10px #00ff41;
+}
+
+/* Button hover effects */
+.neon-button {
+  transition: all 0.3s ease;
+}
+
+.neon-button:hover {
+  box-shadow: 0 0 15px #00ff41, 0 0 30px #00ff41;
+  transform: translateY(-2px);
+}
+
+/* Blinking cursor animation */
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.blinking-cursor {
+  position: relative;
+  padding-left: 2rem;
+}
+
+.blinking-cursor::before {
+  content: '>';
+  position: absolute;
+  left: 1rem;
+  animation: blink 1s infinite;
+  color: #00ff41;
+}
+
+/* Video progress bar */
+.video-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: #00ff41;
+  box-shadow: 0 0 5px #00ff41;
+  transition: width 0.3s ease;
 }

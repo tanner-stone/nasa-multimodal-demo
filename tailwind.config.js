@@ -8,13 +8,22 @@ export default {
     extend: {
       colors: {
         dark: {
-          bg: '#0f172a',
-          surface: '#1e293b',
-          card: '#334155',
-          border: '#475569',
-          text: '#f1f5f9',
-          muted: '#94a3b8'
+          bg: '#000000',
+          surface: '#0a0a0a',
+          card: '#111111',
+          border: '#00ff41',
+          text: '#00ff41',
+          muted: '#00cc33'
+        },
+        neon: {
+          green: '#00ff41',
+          'green-dark': '#00cc33',
+          'green-glow': '#00ff41'
         }
+      },
+      boxShadow: {
+        'neon': '0 0 5px #00ff41, 0 0 10px #00ff41',
+        'neon-lg': '0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41',
       }
     },
   },
