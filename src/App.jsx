@@ -122,7 +122,7 @@ const App = () => {
       console.log(`Main video display: Loading video from ${source_s3_path} at ${startTime}s`);
       return (
         <div className="h-full flex flex-col overflow-hidden">
-          <h2 className="text-xl font-semibold mb-4 text-dark-text flex-shrink-0">{title}</h2>
+          <h2 className="text-xl font-semibold mb-4 text-lime-green flex-shrink-0">{title}</h2>
           <div className="flex-1 flex items-center justify-center min-h-0">
             <video
               key={`${source_s3_path}-${startTime}`}
@@ -137,7 +137,7 @@ const App = () => {
             </video>
           </div>
           {start_timestamp && (
-            <p className="mt-4 text-dark-muted flex-shrink-0">
+            <p className="mt-4 text-muted-green flex-shrink-0">
               Segment starts at: {formatTimestamp(start_timestamp)} (playing from {formatTimestamp(startTime)})
             </p>
           )}
@@ -263,7 +263,7 @@ const App = () => {
         }`}
       >
         <div className="flex gap-3">
-          <div className="flex-shrink-0 w-16 h-16 bg-dark-bg border border-neon-green-dark flex items-center justify-center overflow-hidden relative">
+          <div className="flex-shrink-0 w-16 h-16 bg-dark-bg border border-neon-green-dark flex items-center justify-center overflow-hidden relative group">
             {(file_type === 'mp4' || file_type === 'video_chunk') && source_s3_path ? (
               <>
                 <video
@@ -280,33 +280,63 @@ const App = () => {
                 {start_timestamp && (
                   <div className="video-progress-bar" style={{ width: `${progressPercentage}%` }}></div>
                 )}
+                {/* Play button overlay */}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/60 transition-colors">
+                  <svg className="w-8 h-8 text-neon-green" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </div>
               </>
             ) : images.length > 0 && file_type !== 'pdf' ? (
-              <img
-                src={images[0]}
-                alt={title}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  console.error("Image thumbnail load error:", e.target.error, images[0]);
-                  e.target.style.display = 'none';
-                  e.target.parentElement.innerHTML = '<div class="text-2xl">📄</div>';
-                }}
-              />
+              <>
+                <img
+                  src={images[0]}
+                  alt={title}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    console.error("Image thumbnail load error:", e.target.error, images[0]);
+                    e.target.style.display = 'none';
+                    e.target.parentElement.innerHTML = '<div class="text-2xl">📄</div>';
+                  }}
+                />
+                {/* Image icon overlay */}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/60 transition-colors">
+                  <svg className="w-8 h-8 text-neon-green" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                </div>
+              </>
             ) : (
               <div className="text-2xl">
-                {file_type === 'pdf' ? '📑' : file_type === 'mp4' || file_type === 'video_chunk' ? '🎥' : '📄'}
+                {file_type === 'pdf' ? (
+                  <>
+                    📑
+                    {/* Document icon overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/60 transition-colors">
+                      <svg className="w-8 h-8 text-neon-green" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10 9 9 9 8 9"/>
+                      </svg>
+                    </div>
+                  </>
+                ) : file_type === 'mp4' || file_type === 'video_chunk' ? '🎥' : '📄'}
               </div>
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-neon-green text-xs line-clamp-2 mb-1">
+            <h3 className="font-medium text-lime-green text-xs line-clamp-2 mb-1">
               {title}
               {source_file_name && (
                 <span className="ml-1 text-[10px] text-dark-muted">{source_file_name}</span>
               )}
             </h3>
-            <div className="flex items-center gap-2 text-[10px] text-neon-green-dark">
-              <span className="px-2 py-0.5 bg-dark-bg border border-neon-green-dark">
+            <div className="flex items-center gap-2 text-[10px] text-electric-cyan">
+              <span className="px-2 py-0.5 bg-dark-bg border border-electric-cyan">
                 [{file_type?.toUpperCase()}]
               </span>
               {start_timestamp && (
@@ -320,15 +350,15 @@ const App = () => {
   };
 
   return (
-    <div className="h-screen bg-dark-bg text-dark-text flex flex-col overflow-hidden">
+    <div className="h-screen bg-dark-bg text-dark-text flex flex-col overflow-hidden border-4 border-neon-green">
       {/* Header */}
-      <header className="bg-dark-surface neon-border-lg p-6 flex-shrink-0">
+      <header className="bg-dark-surface neon-border-lg p-6 flex-shrink-0 border-b-0">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-neon-green retro-glow mb-2" style={{ fontFamily: 'Courier New, monospace', letterSpacing: '2px' }}>
               NASA RECORDS AI SEARCH
             </h1>
-            <p className="text-dark-muted italic text-sm">
+            <p className="text-dark-lime italic text-sm">
               &gt; Source: National Archives and Records Administration
             </p>
           </div>
@@ -354,13 +384,13 @@ const App = () => {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="ENTER SEARCH QUERY..."
-                  className="w-full px-4 py-3 bg-dark-bg neon-border text-neon-green placeholder-dark-muted focus:outline-none focus:shadow-neon transition-all font-mono blinking-cursor"
+                  className="w-full px-4 py-3 bg-dark-bg border-2 border-dark-gray-green text-lime-green placeholder-dark-muted focus:outline-none focus:border-lime-green transition-all font-mono blinking-cursor"
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading || !query.trim()}
-                className="px-6 py-3 bg-neon-green text-black font-bold rounded neon-button disabled:opacity-50 disabled:cursor-not-allowed transition-all font-mono"
+                className="px-6 py-3 bg-electric-cyan text-black font-bold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all font-mono hover:bg-electric-cyan/80"
               >
                 {loading ? '[ SEARCHING... ]' : '[ SEARCH ]'}
               </button>
@@ -390,8 +420,8 @@ const App = () => {
                     key={type.value}
                     className={`flex items-center gap-1 px-3 py-1.5 text-xs cursor-pointer transition-all font-mono ${
                       selectedFileTypes.includes(type.value)
-                        ? 'bg-neon-green text-black neon-button'
-                        : 'bg-dark-surface text-neon-green-dark border border-neon-green-dark hover:border-neon-green hover:text-neon-green'
+                        ? 'bg-neon-cyan text-black neon-button'
+                        : 'bg-dark-surface text-neo-mint border border-neo-mint hover:border-neon-cyan hover:text-neon-cyan'
                     }`}
                   >
                     <input
@@ -425,7 +455,7 @@ const App = () => {
           {/* Results Sidebar */}
           <div className="w-80 bg-dark-surface flex-shrink-0">
             <div className="p-4 border-b-2 border-neon-green">
-              <h2 className="text-lg font-semibold text-neon-green font-mono">
+              <h2 className="text-lg font-semibold text-lime-green font-mono">
                 [ RESULTS: {results.length} ]
               </h2>
             </div>
@@ -443,6 +473,15 @@ const App = () => {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="bg-dark-surface border-t-2 border-neon-green p-3 flex-shrink-0">
+        <div className="max-w-7xl mx-auto text-center">
+          <p className="text-xs text-neon-green-dark font-mono">
+            © 2025 MongoDB
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };
