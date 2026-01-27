@@ -7,11 +7,11 @@ export default defineConfig({
     port: 3002,
     proxy: {
       '/search': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:8080',
         changeOrigin: true
       },
       '/health': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:8080',
         changeOrigin: true
       }
     }

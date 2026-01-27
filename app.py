@@ -31,8 +31,8 @@ def init_mongo():
     
     try:
         mongo_client = MongoClient(connection_string)
-        db = mongo_client.multimodal_demo
-        collection = db.nasa_multimodal_content
+        db = mongo_client.ts_multimodal_demo
+        collection = db.nasa_archive
         return True
     except Exception as e:
         print(f"Error connecting to MongoDB: {e}")
@@ -50,6 +50,10 @@ def get_embedding(text):
     except Exception as e:
         print(f"Error generating embedding: {e}")
         return None
+
+@app.route('/')
+def index():
+    return os.environ.get('APP_MESSAGE', 'Hello, World!')
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -197,6 +201,11 @@ def search():
 def health():
     return jsonify({'status': 'healthy'})
 
+@app.route('/liveness', methods=['GET'])
+def liveness():
+    return jsonify({'status': 'alive'})
+
 if __name__ == '__main__':
     init_mongo()
-    app.run(debug=True, port=8080)
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', debug=True, port=port)
