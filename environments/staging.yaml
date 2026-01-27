@@ -5,7 +5,7 @@ env:
     PORT: 8080
 envSecrets:
     MONGO_CONNECTION_STRING: ts-secrets
-    VOYAGE_API_KEY: ts-secrets+
+    VOYAGE_API_KEY: ts-secrets
 probes:
     enabled: true
     path: /liveness
