@@ -1,6 +1,6 @@
 import os
 import json
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from pymongo import MongoClient
 import voyageai
@@ -11,7 +11,7 @@ import requests
 # Load environment variables from .env file
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='dist', static_url_path='')
 CORS(app)
 
 # Initialize Voyage AI client
@@ -53,7 +53,14 @@ def get_embedding(text):
 
 @app.route('/')
 def index():
-    return os.environ.get('APP_MESSAGE', 'Hello, World!')
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    if os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/search', methods=['POST'])
 def search():
