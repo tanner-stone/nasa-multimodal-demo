@@ -22,6 +22,7 @@ mongo_client = None
 db = None
 collection = None
 
+# Hello
 def init_mongo():
     global mongo_client, db, collection
     connection_string = os.getenv('MONGO_CONNECTION_STRING')
