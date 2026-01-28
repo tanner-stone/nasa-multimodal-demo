@@ -56,3 +56,14 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Data files (setup scripts)
+data/
+setup/data/
+*.mp4
+*.mp3
+*.jpg
+*.jpeg
+*.gif
+*.pdf
+*.mov
