@@ -1,6 +1,9 @@
 mesh:
     enabled: true
-replicaCount: 2
+replicaCount: 3
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2 # Allows 1 pod to be disrupted
 env:
     APP_MESSAGE: Hello, MongoDB!
     PORT: 8080
