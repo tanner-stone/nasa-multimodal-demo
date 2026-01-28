@@ -1,5 +1,6 @@
 mesh:
     enabled: true
+replicaCount: 2
 env:
     APP_MESSAGE: Hello, MongoDB!
     PORT: 8080
@@ -7,13 +8,18 @@ envSecrets:
     MONGO_CONNECTION_STRING: ts-secrets
     VOYAGE_API_KEY: ts-secrets
 probes:
-    enabled: true
-    path: /liveness
-    headers: {}
-    liveness:
-      httpGet: true
-      initialDelaySeconds: 20
-      periodSeconds: 60
-      timeoutSeconds: 10
-      successThreshold: 1
-      failureThreshold: 3
+  enabled: true
+  path: /healthz
+  headers: {}
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 3
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 3
