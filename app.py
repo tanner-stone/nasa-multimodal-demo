@@ -22,7 +22,9 @@ mongo_client = None
 db = None
 collection = None
 
-# Hello World
+# Collection configuration - use environment variable to switch between collections
+COLLECTION_NAME = os.getenv('COLLECTION_NAME', 'nasa_archive_3_5')
+
 def init_mongo():
     global mongo_client, db, collection
     connection_string = os.getenv('MONGO_CONNECTION_STRING')
@@ -33,18 +35,22 @@ def init_mongo():
     try:
         mongo_client = MongoClient(connection_string)
         db = mongo_client.ts_multimodal_demo
-        collection = db.nasa_archive
+        collection = db[COLLECTION_NAME]
+        print(f"Connected to collection: {COLLECTION_NAME}")
         return True
     except Exception as e:
         print(f"Error connecting to MongoDB: {e}")
         return False
+
+# Model configuration - use environment variable to switch between models
+VOYAGE_MODEL = os.getenv('VOYAGE_MODEL', 'voyage-multimodal-3.5')
 
 def get_embedding(text):
     """Generate embedding using Voyage AI multimodal model"""
     try:
         result = voyage_client.multimodal_embed(
             inputs=[[text]],
-            model="voyage-multimodal-3",
+            model=VOYAGE_MODEL,
             input_type="query"
         )
         return result.embeddings[0]
@@ -76,7 +82,8 @@ def search():
         query_text = data['query_text']
         filter_file_types = data.get('filter_file_types')
         use_reranker = data.get('use_reranker', True) # Default to True if not provided
-        print(f"Query: '{query_text}', Filter: '{filter_file_types}', Reranker: {use_reranker}")
+        exclude_no_content = data.get('exclude_no_content', True)  # Default to True - filter out blank clips
+        print(f"Query: '{query_text}', Filter: '{filter_file_types}', Reranker: {use_reranker}, ExcludeNoContent: {exclude_no_content}")
         
         # Generate embedding for the query
         print("Generating embedding...")
@@ -102,6 +109,9 @@ def search():
         }
         pipeline.append(vector_search_stage)
         
+        # Build match conditions
+        match_conditions = {}
+        
         # Add file type filter if provided
         if filter_file_types and len(filter_file_types) > 0:
             # Handle video_chunk mapping for mp4 filter
@@ -111,15 +121,17 @@ def search():
                     mapped_file_types.extend(['mp4', 'video_chunk'])
                 else:
                     mapped_file_types.append(ft)
-            
-            match_stage = {
-                "$match": {
-                    "file_type": {"$in": mapped_file_types}
-                }
-            }
-            pipeline.append(match_stage)
+            match_conditions["file_type"] = {"$in": mapped_file_types}
         
-        # Project only required fields
+        # Filter out no_clip_content documents if requested (default: True)
+        if exclude_no_content:
+            match_conditions["no_clip_content"] = {"$ne": True}
+        
+        # Add match stage if there are any conditions
+        if match_conditions:
+            pipeline.append({"$match": match_conditions})
+        
+        # Project only required fields (including page info for PDFs)
         project_stage = {
             "$project": {
                 "naId": 1,
@@ -129,6 +141,9 @@ def search():
                 "file_type": 1,
                 "start_timestamp": 1,
                 "source_file_names": 1,
+                "page_start": 1,
+                "page_end": 1,
+                "total_pages": 1,
                 "score": {"$meta": "vectorSearchScore"}
             }
         }

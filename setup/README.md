@@ -4,12 +4,13 @@ This directory contains scripts for scraping, processing, and embedding NASA rec
 
 ## Overview
 
-The setup process consists of 4 main steps:
+The setup process consists of 5 main steps:
 
 1. **Scrape** - Download NASA records and media files from NARA
 2. **Process** - Split MP4 videos into chunks with audio and frames
-3. **Embed Videos** - Create multimodal embeddings for video chunks
-4. **Embed Images** - Create multimodal embeddings for images and PDFs
+3. **Embed Videos** - Create multimodal embeddings for video chunks (voyage-multimodal-3)
+4. **Embed Images** - Create multimodal embeddings for images and PDFs (voyage-multimodal-3)
+5. **Migrate to 3.5** - Migrate to voyage-multimodal-3.5 with enhanced features
 
 ## Prerequisites
 
@@ -139,6 +140,51 @@ python 04_image_embedding.py
 **Configuration:**
 - `MAX_IMAGE_DIM` - Maximum image dimension (default: 2048)
 
+### Step 5: Migrate to voyage-multimodal-3.5
+
+Migrates existing data to a new collection with voyage-multimodal-3.5 embeddings:
+
+```bash
+python 05_migrate_to_3_5.py
+```
+
+**What it does:**
+- Creates a new collection `nasa_archive_3_5` with enhanced embeddings
+- **Video chunks**: Uses native Video API for direct video embedding (instead of frames + transcript)
+- **PDFs**: Creates page-level chunks with overlapping pages for better retrieval
+- **Blank detection**: Flags video clips with `no_clip_content: true` when both:
+  - 80%+ of frames are blank/black
+  - Transcript is meaningless (e.g., "you", silence, music symbols)
+- Preserves all original metadata
+
+**New Features in 3.5 Collection:**
+
+| Feature | Old (nasa_archive) | New (nasa_archive_3_5) |
+|---------|-------------------|------------------------|
+| Video embedding | Frames + transcript | Native Video API |
+| PDF chunking | Whole document | Page-level (overlapping) |
+| Blank clip detection | None | `no_clip_content` field |
+| Model | voyage-multimodal-3 | voyage-multimodal-3.5 |
+
+**New Document Fields:**
+
+For video chunks:
+- `no_clip_content` (boolean) - True if clip has blank frames AND meaningless transcript
+
+For PDFs:
+- `page_start` (int) - Starting page number (1-indexed)
+- `page_end` (int) - Ending page number
+- `total_pages` (int) - Total pages in the PDF
+
+**Configuration:**
+- `SOURCE_COLLECTION` - Source collection name (default: `nasa_archive`)
+- `TARGET_COLLECTION` - Target collection name (default: `nasa_archive_3_5`)
+
+**Requirements:**
+- Existing `nasa_archive` collection with data
+- OpenAI API key (for Whisper transcription)
+- Voyage AI API key (with access to voyage-multimodal-3.5)
+
 ## Data Structure
 
 ### Directory Layout
@@ -235,6 +281,8 @@ Index name: `vector_index`
 | `CHUNK_DURATION` | No | `10` | Video chunk duration (seconds) |
 | `FRAMES_PER_CHUNK` | No | `5` | Frames to extract per chunk |
 | `MAX_IMAGE_DIM` | No | `2048` | Maximum image dimension (pixels) |
+| `SOURCE_COLLECTION` | No | `nasa_archive` | Source collection for migration (script 05) |
+| `TARGET_COLLECTION` | No | `nasa_archive_3_5` | Target collection for migration (script 05) |
 
 ## Troubleshooting
 
