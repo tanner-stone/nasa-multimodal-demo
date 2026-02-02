@@ -146,15 +146,30 @@ const App = () => {
     }
 
     if (file_type === 'pdf' && images.length > 0) {
-      // For PDFs, embed them in an iframe or provide download link
+      // For PDFs, embed them in an iframe with page navigation
+      // Use page_start from the result to jump to the relevant page
+      const { page_start, page_end, total_pages } = selectedResult;
+      
+      // Build PDF URL with page fragment to jump to relevant page
+      // Most PDF viewers support #page=N fragment
+      const pdfUrl = page_start 
+        ? `${images[currentImageIndex]}#page=${page_start}`
+        : images[currentImageIndex];
+      
       return (
         <div className="h-full flex flex-col overflow-hidden">
-          <h2 className="text-xl font-semibold mb-4 text-dark-text flex-shrink-0">{title}</h2>
+          <h2 className="text-xl font-semibold mb-2 text-dark-text flex-shrink-0">{title}</h2>
+          {page_start && (
+            <p className="text-sm text-electric-cyan mb-4 flex-shrink-0 font-mono">
+              [ Relevant pages: {page_start}{page_end && page_end !== page_start ? `-${page_end}` : ''} of {total_pages || '?'} ]
+            </p>
+          )}
           <div className="flex-1 flex flex-col items-center justify-center relative min-h-0">
             <iframe
-              src={images[currentImageIndex]}
+              key={pdfUrl}
+              src={pdfUrl}
               className="w-full h-full rounded-lg"
-              title={`${title} - Page ${currentImageIndex + 1}`}
+              title={`${title} - Page ${page_start || 1}`}
             />
             {images.length > 1 && (
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-dark-surface/90 backdrop-blur-sm rounded-lg p-2">
@@ -166,7 +181,7 @@ const App = () => {
                   Previous
                 </button>
                 <span className="px-4 py-2 bg-dark-bg text-dark-text rounded-lg">
-                  Page {currentImageIndex + 1} / {images.length}
+                  Doc {currentImageIndex + 1} / {images.length}
                 </span>
                 <button
                   onClick={nextImage}
@@ -178,7 +193,7 @@ const App = () => {
               </div>
             )}
             <a 
-              href={images[currentImageIndex]} 
+              href={pdfUrl} 
               target="_blank" 
               rel="noopener noreferrer"
               className="absolute top-4 right-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -237,14 +252,15 @@ const App = () => {
   };
 
   const renderResultItem = (result, index) => {
-    const { file_type, source_s3_path, title, start_timestamp, source_file_name } = result;
+    const { file_type, source_s3_path, title, start_timestamp, source_file_name, page_start, page_end } = result;
     const images = getImageSources(result);
-    const uniqueKey = `${title}|||${source_file_name}|||${start_timestamp || 'no-ts'}-${index}`;
+    const uniqueKey = `${title}|||${source_file_name}|||${start_timestamp || 'no-ts'}|||${page_start || 'no-page'}-${index}`;
     const isSelected =
       selectedResult &&
       selectedResult.title === title &&
       selectedResult.source_file_name === source_file_name &&
-      selectedResult.start_timestamp === result.start_timestamp;
+      selectedResult.start_timestamp === result.start_timestamp &&
+      selectedResult.page_start === result.page_start;
 
     // Calculate progress percentage for video chunks (0-100%)
     const progressPercentage = start_timestamp ? Math.min((start_timestamp / 600) * 100, 100) : 0;
@@ -335,12 +351,15 @@ const App = () => {
                 <span className="ml-1 text-[10px] text-dark-muted">{source_file_name}</span>
               )}
             </h3>
-            <div className="flex items-center gap-2 text-[10px] text-electric-cyan">
+            <div className="flex items-center gap-2 text-[10px] text-electric-cyan flex-wrap">
               <span className="px-2 py-0.5 bg-dark-bg border border-electric-cyan">
                 [{file_type?.toUpperCase()}]
               </span>
               {start_timestamp && (
                 <span>[{formatTimestamp(start_timestamp)}]</span>
+              )}
+              {page_start && (
+                <span>[p.{page_start}{page_end && page_end !== page_start ? `-${page_end}` : ''}]</span>
               )}
             </div>
           </div>
