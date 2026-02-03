@@ -94,23 +94,8 @@ def search():
         
         print(f"Generated embedding with length: {len(embedding)}")
         
-        # Build aggregation pipeline
-        pipeline = []
-        
-        # Vector search stage
-        vector_search_stage = {
-            "$vectorSearch": {
-                "index": "vector_index",
-                "path": "embedding",
-                "queryVector": embedding,
-                "numCandidates": 200,
-                "limit": 50
-            }
-        }
-        pipeline.append(vector_search_stage)
-        
-        # Build match conditions
-        match_conditions = {}
+        # Build filter conditions for vector search pre-filtering
+        filter_conditions = {}
         
         # Add file type filter if provided
         if filter_file_types and len(filter_file_types) > 0:
@@ -121,15 +106,31 @@ def search():
                     mapped_file_types.extend(['mp4', 'video_chunk'])
                 else:
                     mapped_file_types.append(ft)
-            match_conditions["file_type"] = {"$in": mapped_file_types}
+            filter_conditions["file_type"] = {"$in": mapped_file_types}
         
         # Filter out no_clip_content documents if requested (default: True)
         if exclude_no_content:
-            match_conditions["no_clip_content"] = {"$ne": True}
+            filter_conditions["no_clip_content"] = {"$ne": True}
         
-        # Add match stage if there are any conditions
-        if match_conditions:
-            pipeline.append({"$match": match_conditions})
+        # Build aggregation pipeline
+        pipeline = []
+        
+        # Vector search stage with pre-filtering
+        vector_search_stage = {
+            "$vectorSearch": {
+                "index": "ts_multimodal35_demo",
+                "path": "embedding",
+                "queryVector": embedding,
+                "numCandidates": 200,
+                "limit": 50
+            }
+        }
+        
+        # Add filter to vector search if there are any conditions
+        if filter_conditions:
+            vector_search_stage["$vectorSearch"]["filter"] = filter_conditions
+        
+        pipeline.append(vector_search_stage)
         
         # Project only required fields (including page info for PDFs)
         project_stage = {
