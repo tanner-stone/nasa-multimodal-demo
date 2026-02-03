@@ -7,6 +7,8 @@ podDisruptionBudget:
 env:
     APP_MESSAGE: Hello, MongoDB!
     PORT: 8080
+    COLLECTION_NAME: nasa_archive_3_5
+    VOYAGE_MODEL: voyage-multimodal-3.5
 envSecrets:
     MONGO_CONNECTION_STRING: ts-secrets
     VOYAGE_API_KEY: ts-secrets

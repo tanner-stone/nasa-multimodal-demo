@@ -4,10 +4,6 @@ data/
 *.mp4
 *.mp3
 *.mov
-*.jpg
-*.jpeg
-*.gif
-*.pdf
 
 # Git
 .git
@@ -35,10 +31,6 @@ venv/
 *.swp
 *.swo
 
-# Build artifacts
-dist/
-build/
-
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
@@ -55,10 +47,5 @@ htmlcov/
 # macOS
 .DS_Store
 
-# Documentation
-README.md
-setup/README.md
-
-# Drone CI
-.drone.yml
-environments/
+# NOTE: Do NOT exclude dist/, src/, public/, or build/ 
+# These are needed for the multi-stage Docker build
