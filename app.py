@@ -225,6 +225,10 @@ def search():
 def health():
     return jsonify({'status': 'healthy'})
 
+@app.route('/healthz', methods=['GET'])
+def healthz():
+    return jsonify({'status': 'healthy'})
+
 @app.route('/liveness', methods=['GET'])
 def liveness():
     return jsonify({'status': 'alive'})
