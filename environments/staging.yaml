@@ -4,6 +4,13 @@ replicaCount: 3
 podDisruptionBudget:
   enabled: true
   minAvailable: 2 # Allows 1 pod to be disrupted
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
 env:
     APP_MESSAGE: Hello, MongoDB!
     PORT: 8080
