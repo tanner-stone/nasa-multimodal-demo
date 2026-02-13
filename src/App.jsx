@@ -10,6 +10,19 @@ const App = () => {
   const [error, setError] = useState('');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+  // Vector index state
+  const [vectorIndexes, setVectorIndexes] = useState({});
+  const [selectedIndex, setSelectedIndex] = useState('float32');
+  
+  // Query metadata state
+  const [queryMetadata, setQueryMetadata] = useState(null);
+  const [showPipeline, setShowPipeline] = useState(false);
+  
+  // Full document viewer state
+  const [fullDocument, setFullDocument] = useState(null);
+  const [showFullDocument, setShowFullDocument] = useState(false);
+  const [loadingDocument, setLoadingDocument] = useState(false);
+
   const fileTypes = [
     { value: 'mp4', label: 'Videos (.mp4)' },
     { value: 'jpg', label: 'Images (.jpg)' },
@@ -19,6 +32,19 @@ const App = () => {
 
   // Reranker toggle state
   const [useReranker, setUseReranker] = useState(false);
+
+  // Fetch available vector indexes on mount
+  useEffect(() => {
+    const fetchIndexes = async () => {
+      try {
+        const response = await axios.get('/api/indexes');
+        setVectorIndexes(response.data);
+      } catch (err) {
+        console.error('Failed to fetch indexes:', err);
+      }
+    };
+    fetchIndexes();
+  }, []);
 
   const handleFileTypeToggle = (fileType) => {
     setSelectedFileTypes(prev => 
@@ -34,17 +60,27 @@ const App = () => {
 
     setLoading(true);
     setError('');
+    setQueryMetadata(null);
+    setShowPipeline(false);
+    setFullDocument(null);
+    setShowFullDocument(false);
     
     try {
       const response = await axios.post('/search', {
         query_text: query,
         filter_file_types: selectedFileTypes.length > 0 ? selectedFileTypes : undefined,
-        use_reranker: useReranker
+        use_reranker: useReranker,
+        vector_index: selectedIndex
       });
       
-      setResults(response.data);
-      if (response.data.length > 0) {
-        setSelectedResult(response.data[0]);
+      // Handle new response format with results and metadata
+      const { results: searchResults, metadata } = response.data;
+      
+      setResults(searchResults);
+      setQueryMetadata(metadata);
+      
+      if (searchResults.length > 0) {
+        setSelectedResult(searchResults[0]);
         setCurrentImageIndex(0);
       }
     } catch (err) {
@@ -56,9 +92,26 @@ const App = () => {
     }
   };
 
-  const handleResultClick = (result) => {
+  const handleResultClick = async (result) => {
     setSelectedResult(result);
     setCurrentImageIndex(0);
+    setShowFullDocument(false);
+    setFullDocument(null);
+  };
+
+  const fetchFullDocument = async (docId) => {
+    if (!docId) return;
+    
+    setLoadingDocument(true);
+    try {
+      const response = await axios.get(`/api/document/${docId}`);
+      setFullDocument(response.data);
+      setShowFullDocument(true);
+    } catch (err) {
+      console.error('Failed to fetch document:', err);
+    } finally {
+      setLoadingDocument(false);
+    }
   };
 
   const getImageSources = (result) => {
@@ -99,7 +152,19 @@ const App = () => {
   };
 
   const getVideoStartTime = (timestamp) => {
-    return Math.max(0, timestamp - 3);
+    return timestamp || 0;
+  };
+
+  const formatScore = (score) => {
+    if (score === undefined || score === null) return 'N/A';
+    return (score * 100).toFixed(1) + '%';
+  };
+
+  const getScoreBadgeClass = (score) => {
+    if (score === undefined || score === null) return '';
+    if (score >= 0.75) return 'score-badge-high';
+    if (score >= 0.60) return 'score-badge-medium';
+    return 'score-badge-low';
   };
 
   const renderMainContent = () => {
@@ -107,7 +172,7 @@ const App = () => {
       return (
         <div className="flex items-center justify-center h-full text-dark-muted">
           <div className="text-center">
-            <div className="text-6xl mb-4 retro-glow">🚀</div>
+            <div className="text-6xl mb-4 retro-glow rocket-float">🚀</div>
             <p className="text-xl font-mono text-neon-green">[ SEARCH NASA RECORDS TO GET STARTED ]</p>
           </div>
         </div>
@@ -122,13 +187,13 @@ const App = () => {
       console.log(`Main video display: Loading video from ${source_s3_path} at ${startTime}s`);
       return (
         <div className="h-full flex flex-col overflow-hidden">
-          <h2 className="text-xl font-semibold mb-4 text-lime-green flex-shrink-0">{title}</h2>
-          <div className="flex-1 flex items-center justify-center min-h-0">
+          <h2 className="text-lg font-semibold mb-2 text-lime-green flex-shrink-0">{title}</h2>
+          <div className="flex-1 flex items-center justify-center min-h-0 bg-black rounded-lg">
             <video
               key={`${source_s3_path}-${startTime}`}
               controls
               autoPlay
-              className="max-w-full max-h-full rounded-lg bg-black"
+              className="w-full h-full rounded-lg"
               style={{ objectFit: 'contain' }}
               src={`${source_s3_path}#t=${startTime}`}
               onError={(e) => console.error("Video load error in main display:", e.target.error)}
@@ -137,7 +202,7 @@ const App = () => {
             </video>
           </div>
           {start_timestamp && (
-            <p className="mt-4 text-muted-green flex-shrink-0">
+            <p className="mt-2 text-muted-green flex-shrink-0 text-sm font-mono">
               Segment starts at: {formatTimestamp(start_timestamp)} (playing from {formatTimestamp(startTime)})
             </p>
           )}
@@ -252,7 +317,7 @@ const App = () => {
   };
 
   const renderResultItem = (result, index) => {
-    const { file_type, source_s3_path, title, start_timestamp, source_file_name, page_start, page_end } = result;
+    const { file_type, source_s3_path, title, start_timestamp, source_file_name, page_start, page_end, score } = result;
     const images = getImageSources(result);
     const uniqueKey = `${title}|||${source_file_name}|||${start_timestamp || 'no-ts'}|||${page_start || 'no-page'}-${index}`;
     const isSelected =
@@ -271,11 +336,13 @@ const App = () => {
         onClick={() => {
           setSelectedResult({ ...result });
           setCurrentImageIndex(0);
+          setShowFullDocument(false);
+          setFullDocument(null);
         }}
-        className={`p-3 cursor-pointer transition-all border font-mono ${
+        className={`p-3 cursor-pointer transition-all border font-mono result-card-hover ${
           isSelected
             ? 'bg-dark-card neon-border shadow-neon'
-            : 'bg-dark-surface border-neon-green-dark hover:border-neon-green hover:shadow-neon'
+            : 'bg-dark-surface border-neon-green-dark'
         }`}
       >
         <div className="flex gap-3">
@@ -361,6 +428,12 @@ const App = () => {
               {page_start && (
                 <span>[p.{page_start}{page_end && page_end !== page_start ? `-${page_end}` : ''}]</span>
               )}
+              {/* Vector search score badge */}
+              {score !== undefined && (
+                <span className={`px-2 py-0.5 border border-neon-green text-neon-green ${getScoreBadgeClass(score)}`}>
+                  {formatScore(score)}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -371,21 +444,21 @@ const App = () => {
   return (
     <div className="h-screen bg-dark-bg text-dark-text flex flex-col overflow-hidden border-4 border-neon-green">
       {/* Header */}
-      <header className="bg-dark-surface neon-border-lg p-6 flex-shrink-0 border-b-0">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-neon-green retro-glow mb-2" style={{ fontFamily: 'Courier New, monospace', letterSpacing: '2px' }}>
+      <header className="bg-dark-surface neon-border-lg px-6 py-3 flex-shrink-0 border-b-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-black text-neon-green title-glow tracking-wider" style={{ fontFamily: 'Courier New, monospace', textTransform: 'uppercase' }}>
               NASA RECORDS AI SEARCH
             </h1>
-            <p className="text-dark-lime italic text-sm">
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="text-dark-lime italic text-xs font-mono">
               &gt; Source: National Archives and Records Administration
             </p>
-          </div>
-          <div className="flex-shrink-0">
             <img 
               src="/mdb-leaf.png" 
               alt="MongoDB Logo" 
-              className="h-16 w-auto opacity-60 hover:opacity-100 transition-opacity"
+              className="h-10 w-auto opacity-60 hover:opacity-100 transition-opacity"
               style={{ filter: 'brightness(0) saturate(100%) invert(88%) sepia(85%) saturate(2427%) hue-rotate(54deg) brightness(104%) contrast(119%)' }}
             />
           </div>
@@ -393,23 +466,23 @@ const App = () => {
       </header>
 
       {/* Search Bar */}
-      <div className="bg-dark-surface neon-border p-6 flex-shrink-0">
-        <div className="max-w-7xl mx-auto">
-          <form onSubmit={handleSearch} className="space-y-4">
-            <div className="flex gap-4 items-center">
+      <div className="bg-dark-surface neon-border px-6 py-3 flex-shrink-0">
+        <div>
+          <form onSubmit={handleSearch} className="space-y-2">
+            <div className="flex gap-3 items-center">
               <div className="flex-1">
                 <input
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="ENTER SEARCH QUERY..."
-                  className="w-full px-4 py-3 bg-dark-bg border-2 border-dark-gray-green text-lime-green placeholder-dark-muted focus:outline-none focus:border-lime-green transition-all font-mono blinking-cursor"
+                  className="w-full px-4 py-2 bg-dark-bg border-2 border-dark-gray-green text-lime-green placeholder-dark-muted focus:outline-none focus:border-lime-green transition-all font-mono blinking-cursor text-sm"
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading || !query.trim()}
-                className="px-6 py-3 bg-electric-cyan text-black font-bold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all font-mono hover:bg-electric-cyan/80"
+                className={`px-4 py-2 bg-electric-cyan text-black font-bold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all font-mono hover:bg-electric-cyan/80 text-sm ${!loading && query.trim() ? 'search-btn-pulse' : ''}`}
               >
                 {loading ? '[ SEARCHING... ]' : '[ SEARCH ]'}
               </button>
@@ -421,66 +494,183 @@ const App = () => {
                   onChange={() => setUseReranker((v) => !v)}
                   className="accent-neon-green"
                 />
-                Use reranker
+                Reranker
               </label>
             </div>
             
-            {/* File Types Filter - Now Below */}
-            <div className="bg-dark-bg neon-border p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-xs text-neon-green font-mono">[ FILE TYPES ]</div>
-                {selectedFileTypes.length === 0 && (
-                  <div className="text-xs text-dark-muted font-mono">* All types selected</div>
-                )}
+            {/* File Types and Index Selection Row */}
+            <div className="flex gap-4">
+              {/* File Types Filter */}
+              <div className="flex-1 bg-dark-bg neon-border p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-[10px] text-neon-green font-mono">[ FILE TYPES ]</div>
+                  {selectedFileTypes.length === 0 && (
+                    <div className="text-[10px] text-dark-muted font-mono">* All</div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {fileTypes.map(type => (
+                    <label
+                      key={type.value}
+                      className={`flex items-center gap-1 px-2 py-1 text-[10px] cursor-pointer transition-all font-mono ${
+                        selectedFileTypes.includes(type.value)
+                          ? 'bg-neon-cyan text-black neon-button'
+                          : 'bg-dark-surface text-neo-mint border border-neo-mint hover:border-neon-cyan hover:text-neon-cyan'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedFileTypes.includes(type.value)}
+                        onChange={() => handleFileTypeToggle(type.value)}
+                        className="sr-only"
+                      />
+                      {type.label}
+                    </label>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {fileTypes.map(type => (
-                  <label
-                    key={type.value}
-                    className={`flex items-center gap-1 px-3 py-1.5 text-xs cursor-pointer transition-all font-mono ${
-                      selectedFileTypes.includes(type.value)
-                        ? 'bg-neon-cyan text-black neon-button'
-                        : 'bg-dark-surface text-neo-mint border border-neo-mint hover:border-neon-cyan hover:text-neon-cyan'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedFileTypes.includes(type.value)}
-                      onChange={() => handleFileTypeToggle(type.value)}
-                      className="sr-only"
-                    />
-                    {type.label}
-                  </label>
-                ))}
+
+              {/* Quantization Selector */}
+              <div className="bg-dark-bg neon-border p-2 min-w-[320px]">
+                <div className="text-[10px] text-neon-green font-mono mb-1">[ QUANTIZATION ]</div>
+                <div className="flex gap-1">
+                  {/* Always render in order: float32, scalar, binary (largest to smallest) */}
+                  {[
+                    { key: 'float32', label: 'FLOAT32', storage: '~47 MB', tooltip: 'Full precision (32-bit float per dimension). Highest accuracy, largest storage.', colorClass: 'quant-float32' },
+                    { key: 'scalar', label: 'SCALAR', storage: '~12 MB', tooltip: 'Scalar quantization (8-bit int per dimension). ~75% storage reduction with minimal accuracy loss.', colorClass: 'quant-scalar' },
+                    { key: 'binary', label: 'BINARY', storage: '~1.5 MB', tooltip: 'Binary quantization (1-bit per dimension). ~97% storage reduction, best for high-recall pre-filtering.', colorClass: 'quant-binary' }
+                  ].map(({ key, label, storage, tooltip, colorClass }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSelectedIndex(key)}
+                      title={tooltip}
+                      className={`flex-1 px-2 py-1 text-[10px] font-mono transition-all relative group ${
+                        selectedIndex === key
+                          ? `${colorClass} text-black`
+                          : 'bg-dark-surface text-neon-green border border-neon-green-dark hover:border-neon-green'
+                      }`}
+                    >
+                      <div className="font-bold">{label}</div>
+                      <div className="text-[8px] opacity-75">{storage}</div>
+                      {/* Tooltip */}
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-dark-bg border border-neon-green text-neon-green text-[9px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 max-w-[200px] text-wrap">
+                        {tooltip}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </form>
+          
           {error && (
-            <div className="mt-4 p-4 bg-red-900/20 neon-border text-neon-green font-mono">
+            <div className="mt-3 p-3 bg-red-900/20 neon-border text-neon-green font-mono text-sm">
               [ ERROR ] {error}
+            </div>
+          )}
+
+          {/* Query Metadata Display */}
+          {queryMetadata && (
+            <div className="mt-3 bg-dark-bg neon-border p-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4 text-xs font-mono">
+                  <span className="text-electric-cyan">
+                    ⚡ Latency: <span className="text-neon-green font-bold">{queryMetadata.latency_ms}ms</span>
+                  </span>
+                  <span className="text-electric-cyan">
+                    📊 Results: <span className="text-neon-green font-bold">{queryMetadata.result_count}</span>
+                  </span>
+                  <span className="text-electric-cyan">
+                    🔍 Index: <span className="text-neon-green font-bold">{queryMetadata.index_type}</span>
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowPipeline(!showPipeline)}
+                  className="text-[10px] font-mono text-electric-cyan hover:text-neon-green transition-colors"
+                >
+                  {showPipeline ? '[ HIDE PIPELINE ▲ ]' : '[ SHOW PIPELINE ▼ ]'}
+                </button>
+              </div>
+              
+              {/* Aggregation Pipeline Dropdown */}
+              {showPipeline && (
+                <div className="mt-2 p-2 bg-dark-surface border border-neon-green-dark rounded overflow-x-auto">
+                  <pre className="text-[10px] text-lime-green font-mono whitespace-pre-wrap">
+                    {JSON.stringify(queryMetadata.pipeline, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex flex-1">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
           {/* Main Display */}
-          <div className="flex-1 bg-dark-surface border-r-2 border-neon-green p-6">
-            {renderMainContent()}
+          <div className="flex-1 bg-dark-surface border-r-2 border-neon-green p-4 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-hidden">
+              {renderMainContent()}
+            </div>
+            
+            {/* View Full Document Button */}
+            {selectedResult && selectedResult._id && (
+              <div className="mt-2 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    if (showFullDocument) {
+                      setShowFullDocument(false);
+                    } else {
+                      fetchFullDocument(selectedResult._id);
+                    }
+                  }}
+                  disabled={loadingDocument}
+                  className="text-xs font-mono text-electric-cyan hover:text-neon-green transition-colors"
+                >
+                  {loadingDocument ? '[ LOADING... ]' : showFullDocument ? '[ HIDE DOCUMENT ▲ ]' : '[ VIEW FULL DOCUMENT ▼ ]'}
+                </button>
+              </div>
+            )}
+            
+            {/* Full Document Viewer */}
+            {showFullDocument && fullDocument && (
+              <div className="mt-2 flex-shrink-0 max-h-48 overflow-y-auto bg-dark-bg neon-border p-2 rounded">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] text-neon-green font-mono">[ FULL DOCUMENT ]</span>
+                  <button
+                    onClick={() => setShowFullDocument(false)}
+                    className="text-[10px] text-electric-cyan hover:text-neon-green"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <pre className="text-[10px] text-lime-green font-mono whitespace-pre-wrap">
+                  {JSON.stringify(fullDocument, null, 2)}
+                </pre>
+              </div>
+            )}
           </div>
 
           {/* Results Sidebar */}
-          <div className="w-80 bg-dark-surface flex-shrink-0">
-            <div className="p-4 border-b-2 border-neon-green">
-              <h2 className="text-lg font-semibold text-lime-green font-mono">
+          <div className="w-72 bg-dark-surface flex-shrink-0 flex flex-col">
+            <div className="p-3 border-b-2 border-neon-green flex-shrink-0">
+              <h2 className="text-sm font-semibold text-lime-green font-mono">
                 [ RESULTS: {results.length} ]
               </h2>
             </div>
-            <div className="p-4 space-y-3 overflow-y-auto h-[calc(100%-80px)]">
+            <div className="p-3 space-y-2 overflow-y-auto flex-1">
+              {loading && (
+                <div className="py-8">
+                  <div className="h-2 w-full loading-bar rounded"></div>
+                  <p className="text-dark-muted text-center mt-4 font-mono text-xs">
+                    &gt; Searching...
+                  </p>
+                </div>
+              )}
               {results.length === 0 && !loading && (
-                <p className="text-dark-muted text-center py-8 font-mono">
+                <p className="text-dark-muted text-center py-8 font-mono text-xs">
                   &gt; No results yet. Try searching!
                 </p>
               )}
@@ -494,10 +684,10 @@ const App = () => {
       </div>
 
       {/* Footer */}
-      <footer className="bg-dark-surface border-t-2 border-neon-green p-3 flex-shrink-0">
+      <footer className="bg-dark-surface border-t-2 border-neon-green p-2 flex-shrink-0">
         <div className="max-w-7xl mx-auto text-center">
-          <p className="text-xs text-neon-green-dark font-mono">
-            © 2025 MongoDB
+          <p className="text-[10px] text-neon-green-dark font-mono">
+            © 2025 MongoDB | Vector Search Demo
           </p>
         </div>
       </footer>

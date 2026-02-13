@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from pymongo import MongoClient
@@ -69,6 +70,61 @@ def serve_static(path):
     else:
         return send_from_directory(app.static_folder, 'index.html')
 
+# Available vector search indexes with their configurations
+VECTOR_INDEXES = {
+    'float32': {
+        'name': 'vector_index_float32',
+        'quantization': None,
+        'storage_estimate': '~47 MB',  # 1024 dims * 4 bytes * 11634 docs
+        'description': 'Full precision (32-bit float)'
+    },
+    'scalar': {
+        'name': 'vector_index_scalar',
+        'quantization': 'scalar',
+        'storage_estimate': '~12 MB',  # 1024 dims * 1 byte * 11634 docs
+        'description': 'Scalar quantization (8-bit int)'
+    },
+    'binary': {
+        'name': 'vector_index_binary',
+        'quantization': 'binary',
+        'storage_estimate': '~1.5 MB',  # 1024 dims / 8 bits * 11634 docs
+        'description': 'Binary quantization (1-bit)'
+    }
+}
+
+@app.route('/api/indexes', methods=['GET'])
+def get_indexes():
+    """Return available vector search indexes with their metadata"""
+    return jsonify(VECTOR_INDEXES)
+
+@app.route('/api/document/<doc_id>', methods=['GET'])
+def get_document(doc_id):
+    """Fetch a full document by its _id"""
+    try:
+        if collection is None:
+            if not init_mongo():
+                return jsonify({'error': 'Database connection failed'}), 500
+        
+        # Find the document by _id (stored as string in this collection)
+        document = collection.find_one({'_id': doc_id})
+        
+        if not document:
+            return jsonify({'error': 'Document not found'}), 404
+        
+        # Remove the embedding field as it's large and not needed for display
+        if 'embedding' in document:
+            document['embedding'] = f"[{len(document['embedding'])} dimensions - hidden for display]"
+        
+        # Convert any ObjectId fields to strings
+        for key, value in document.items():
+            if isinstance(value, ObjectId):
+                document[key] = str(value)
+        
+        return jsonify(document)
+    except Exception as e:
+        print(f"Error fetching document: {e}")
+        return jsonify({'error': 'Failed to fetch document'}), 500
+
 @app.route('/search', methods=['POST'])
 def search():
     try:
@@ -83,7 +139,8 @@ def search():
         filter_file_types = data.get('filter_file_types')
         use_reranker = data.get('use_reranker', True) # Default to True if not provided
         exclude_no_content = data.get('exclude_no_content', True)  # Default to True - filter out blank clips
-        print(f"Query: '{query_text}', Filter: '{filter_file_types}', Reranker: {use_reranker}, ExcludeNoContent: {exclude_no_content}")
+        vector_index = data.get('vector_index', 'float32')  # Default to float32 index
+        print(f"Query: '{query_text}', Filter: '{filter_file_types}', Reranker: {use_reranker}, ExcludeNoContent: {exclude_no_content}, Index: {vector_index}")
         
         # Generate embedding for the query
         print("Generating embedding...")
@@ -112,13 +169,17 @@ def search():
         if exclude_no_content:
             filter_conditions["no_clip_content"] = {"$ne": True}
         
+        # Get the selected index configuration
+        index_config = VECTOR_INDEXES.get(vector_index, VECTOR_INDEXES['float32'])
+        index_name = index_config['name']
+        
         # Build aggregation pipeline
         pipeline = []
         
         # Vector search stage with pre-filtering
         vector_search_stage = {
             "$vectorSearch": {
-                "index": "ts_multimodal35_demo",
+                "index": index_name,
                 "path": "embedding",
                 "queryVector": embedding,
                 "numCandidates": 200,
@@ -170,8 +231,11 @@ def search():
         # Debug: Show the aggregation pipeline
         print(f"Aggregation pipeline: {pipeline}")
         
+        # Track query execution time
+        search_start_time = time.time()
         results = list(collection.aggregate(pipeline))
-        print(f"Found {len(results)} results")
+        search_latency_ms = (time.time() - search_start_time) * 1000
+        print(f"Found {len(results)} results in {search_latency_ms:.2f}ms")
 
         # Rerank results using Voyage reranker if enabled and there are at least 2 results
         if use_reranker and len(results) > 1:
@@ -212,8 +276,22 @@ def search():
             if '_id' in result:
                 result['_id'] = str(result['_id'])
 
+        # Create a sanitized version of the pipeline for display (replace embedding with placeholder)
+        display_pipeline = json.loads(json.dumps(pipeline))
+        if display_pipeline and '$vectorSearch' in display_pipeline[0]:
+            display_pipeline[0]['$vectorSearch']['queryVector'] = '[1024-dimensional embedding vector]'
+
         print("Returning results")
-        return jsonify(results)
+        return jsonify({
+            'results': results,
+            'metadata': {
+                'latency_ms': round(search_latency_ms, 2),
+                'index_used': index_name,
+                'index_type': vector_index,
+                'result_count': len(results),
+                'pipeline': display_pipeline
+            }
+        })
         
     except Exception as e:
         print(f"Search error: {e}")
